@@ -1,0 +1,348 @@
+const CREATURES = [
+  { name: 'Lumim', title: 'Faísca da origem', c1: '#77ffe3', c2: '#dcff75', crest: 'polygon(50% 0,63% 42%,100% 25%,74% 59%,91% 100%,50% 75%,10% 100%,25% 59%,0 25%,37% 42%)', tail: '-15deg' },
+  { name: 'Musguri', title: 'Guardião do orvalho', c1: '#6ee79c', c2: '#b7ff6e', crest: 'polygon(0 100%,10% 20%,32% 70%,50% 0,66% 70%,92% 15%,100% 100%)', tail: '10deg' },
+  { name: 'Coralume', title: 'Cantor das marés', c1: '#4ed6e8', c2: '#ff91c4', crest: 'polygon(5% 100%,10% 28%,30% 63%,43% 0,60% 60%,88% 16%,96% 100%)', tail: '-28deg' },
+  { name: 'Brumelo', title: 'Pastor das nuvens', c1: '#b7b9ff', c2: '#70e5ff', crest: 'polygon(0 70%,20% 20%,37% 57%,55% 0,72% 55%,100% 19%,90% 100%,5% 100%)', tail: '18deg' },
+  { name: 'Florigon', title: 'Alma do jardim', c1: '#ff91b5', c2: '#ffe46d', crest: 'polygon(50% 0,62% 35%,100% 16%,73% 52%,100% 81%,62% 70%,50% 100%,37% 70%,0 81%,27% 52%,0 16%,38% 35%)', tail: '-5deg' },
+  { name: 'Vulpar', title: 'Raposa estelar', c1: '#ff9a55', c2: '#ffef7c', crest: 'polygon(0 100%,7% 0,50% 52%,93% 0,100% 100%)', tail: '33deg' },
+  { name: 'Noctari', title: 'Vigia do eclipse', c1: '#635ae8', c2: '#d988ff', crest: 'polygon(0 78%,18% 0,48% 48%,80% 0,100% 78%,50% 100%)', tail: '-38deg' },
+  { name: 'Cervéon', title: 'Príncipe celeste', c1: '#52c9c0', c2: '#dcff8b', crest: 'polygon(0 100%,15% 8%,35% 58%,50% 0,66% 58%,87% 8%,100% 100%)', tail: '14deg' },
+  { name: 'Astralga', title: 'Navegante cósmico', c1: '#497be8', c2: '#6dffda', crest: 'polygon(0 78%,25% 45%,14% 0,50% 34%,86% 0,75% 45%,100% 78%,50% 100%)', tail: '-15deg', aura: .55 },
+  { name: 'Solarion', title: 'Herdeiro dos sóis', c1: '#ffbd4d', c2: '#ff6d61', crest: 'polygon(50% 0,63% 34%,91% 8%,78% 43%,100% 55%,70% 68%,80% 100%,50% 77%,19% 100%,30% 68%,0 55%,22% 43%,9% 8%,37% 34%)', tail: '28deg', aura: .7 },
+  { name: 'Nebulume', title: 'Sonho da galáxia', c1: '#cb71ff', c2: '#5dffec', crest: 'polygon(0 100%,8% 30%,32% 57%,50% 0,68% 57%,92% 30%,100% 100%)', tail: '-30deg', aura: .85 },
+  { name: 'EVOA', title: 'Coração do universo', c1: '#f0ff8a', c2: '#7d68ff', crest: 'polygon(50% 0,61% 35%,87% 10%,74% 43%,100% 50%,72% 63%,90% 95%,57% 76%,50% 100%,40% 76%,9% 95%,28% 63%,0 50%,26% 43%,13% 10%,39% 35%)', tail: '20deg', aura: 1 }
+];
+
+const BIOMES = [
+  { min: 0, name: 'Ilha do Primeiro Orvalho', a: '#153f5c', b: '#101a3e' },
+  { min: 3, name: 'Bosque das Nuvens Baixas', a: '#174d4b', b: '#172344' },
+  { min: 6, name: 'Santuário do Eclipse', a: '#35205c', b: '#111b42' },
+  { min: 9, name: 'Jardim da Aurora Cósmica', a: '#553349', b: '#17224b' }
+];
+
+const STORAGE_KEY = 'evoa-save-v1';
+const STARTING_BOARD = [0, 0, 0, null, null, null, null, null, null, null, null, null];
+const defaultState = {
+  board: STARTING_BOARD,
+  lumen: 18,
+  fusions: 0,
+  discovered: [0],
+  highest: 0,
+  selected: null,
+  sound: true,
+  tutorialSeen: false,
+  lastPulse: Date.now(),
+  mission: { target: 4, progress: 0, reward: 25, level: 1 }
+};
+
+let state = loadState();
+let toastTimer;
+const root = document.querySelector('#app');
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!saved || !Array.isArray(saved.board) || saved.board.length !== 12) return structuredClone(defaultState);
+    return { ...structuredClone(defaultState), ...saved, selected: null };
+  } catch { return structuredClone(defaultState); }
+}
+
+function hasMerge() {
+  const occupied = state.board.filter(v => v !== null);
+  return new Set(occupied).size !== occupied.length;
+}
+
+function applyVitalPulse(showMessage = false) {
+  if (state.lumen >= 30) {
+    state.lastPulse = Date.now();
+    return false;
+  }
+  const elapsed = Date.now() - (state.lastPulse || Date.now());
+  const pulses = Math.floor(elapsed / 30000);
+  if (pulses < 1) return false;
+  const before = state.lumen;
+  state.lumen = Math.min(30, state.lumen + pulses * 3);
+  state.lastPulse += pulses * 30000;
+  saveState();
+  if (showMessage && state.lumen > before) setTimeout(() => toast('A ilha respirou: <strong>+3 Lúmen</strong>'), 50);
+  return state.lumen > before;
+}
+
+function saveState() {
+  const clean = { ...state, selected: null };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+}
+
+function beingHTML(tier) {
+  const c = CREATURES[tier];
+  return `<div class="being" style="--c1:${c.c1};--c2:${c.c2};--crest:${c.crest};--tail:${c.tail};--aura:${c.aura || 0}">
+    <div class="aura"></div><div class="crest"></div><div class="tail"></div><div class="body"></div><div class="glint"></div><div class="mark"></div>
+  </div>`;
+}
+
+function starsHTML() {
+  return `<div class="stars">${Array.from({length: 18}, (_, i) => `<i class="star" style="left:${(i * 47) % 97}%;top:${(i * 31) % 91}%;animation-delay:-${(i % 7) * .45}s"></i>`).join('')}</div>`;
+}
+
+function currentBiome() {
+  return [...BIOMES].reverse().find(b => state.highest >= b.min);
+}
+
+function render() {
+  applyVitalPulse(false);
+  const biome = currentBiome();
+  const empty = state.board.filter(v => v === null).length;
+  const lockedGarden = empty === 0 && !hasMerge();
+  root.innerHTML = `<main class="world" style="--biome-a:${biome.a};--biome-b:${biome.b}">
+    ${starsHTML()}
+    <div class="app">
+      <header class="topbar">
+        <div><div class="eyebrow">Jardim das origens</div><h1>EV<span>O</span>A</h1></div>
+        <button class="icon-button" data-action="sound" aria-label="Som">${state.sound ? '♪' : '⌁'}</button>
+      </header>
+
+      <section class="resource-row">
+        <div class="resource"><span class="resource-icon">✦</span><div><small>Lúmen</small><strong>${state.lumen}</strong></div></div>
+        <div class="resource"><span class="resource-icon">◈</span><div><small>Descobertas</small><strong>${state.discovered.length}/${CREATURES.length}</strong></div></div>
+      </section>
+
+      <section class="mission">
+        <div class="mission-copy"><span>Missão ${state.mission.level}</span><b>Faça ${state.mission.target} fusões</b><div class="progress"><i style="width:${Math.min(100, state.mission.progress / state.mission.target * 100)}%"></i></div></div>
+        <div class="mission-reward">+${state.mission.reward} ✦</div>
+      </section>
+
+      <section class="island">
+        <div class="island-head"><div>${biome.name}</div><div class="hint">toque + toque</div></div>
+        <div class="board" role="grid" aria-label="Jardim de criaturas">
+          ${state.board.map((tier, i) => `<button class="cell ${state.selected === i ? 'selected' : ''} ${state.selected !== null && tier !== null && tier === state.board[state.selected] && i !== state.selected ? 'merge-target' : ''}" data-cell="${i}" aria-label="${tier === null ? 'Casulo vazio' : CREATURES[tier].name}">
+            ${tier === null ? '' : `<span class="tier-pill">${tier + 1}</span><div class="creature">${beingHTML(tier)}<div class="creature-name">${CREATURES[tier].name}</div></div>`}
+          </button>`).join('')}
+        </div>
+        <div class="actions">
+          <button class="summon" data-action="summon" ${(!lockedGarden && empty === 0) || (empty > 0 && state.lumen < 3) ? 'disabled' : ''}>
+            <span class="orb">${lockedGarden ? '↻' : '◉'}</span><span class="summon-copy"><b>${lockedGarden ? 'Renovar um casulo' : 'Despertar vida'}</b><small>${lockedGarden ? 'Libera gratuitamente a forma mais simples' : empty === 0 ? 'Jardim lotado — faça uma fusão' : `Custa 3 Lúmen <span id="pulse-timer"></span>`}</small></span>
+          </button>
+        </div>
+      </section>
+
+      <nav class="nav">
+        <button data-action="bestiary"><span>◈</span>Bestiário</button>
+        <button data-action="help"><span>?</span>Como jogar</button>
+        <button data-action="stats"><span>⌁</span>Jornada</button>
+      </nav>
+    </div>
+    <div class="toast" id="toast"></div>
+  </main>`;
+
+  root.querySelectorAll('[data-cell]').forEach(btn => btn.addEventListener('click', () => selectCell(Number(btn.dataset.cell))));
+  root.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', () => action(btn.dataset.action)));
+  if (!state.tutorialSeen) requestAnimationFrame(() => showTutorial(true));
+}
+
+function action(name) {
+  if (name === 'summon') summon();
+  if (name === 'sound') { state.sound = !state.sound; saveState(); render(); }
+  if (name === 'bestiary') showBestiary();
+  if (name === 'stats') showStats();
+  if (name === 'help') showTutorial(false);
+}
+
+function summon() {
+  const empty = state.board.map((v, i) => v === null ? i : -1).filter(i => i >= 0);
+  if (!empty.length && !hasMerge()) {
+    const lowest = Math.min(...state.board);
+    const slot = state.board.indexOf(lowest);
+    state.board[slot] = null;
+    state.selected = null;
+    saveState();
+    render();
+    return toast(`O jardim devolveu um <strong>${CREATURES[lowest].name}</strong> à origem.`);
+  }
+  if (!empty.length) return toast('Seu jardim está cheio. Una duas criaturas iguais.');
+  if (state.lumen < 3) return toast('Você precisa de mais Lúmen. Faça fusões.');
+  state.lumen -= 3;
+  const slot = empty[Math.floor(Math.random() * empty.length)];
+  const roll = Math.random();
+  state.board[slot] = state.highest >= 4 && roll > .86 ? 1 : 0;
+  state.selected = null;
+  sound('summon');
+  saveState();
+  render();
+  animateBirth(slot);
+}
+
+function selectCell(index) {
+  const tier = state.board[index];
+  if (tier === null) {
+    state.selected = null;
+    render();
+    return;
+  }
+  if (state.selected === null) {
+    state.selected = index;
+    sound('tap');
+    render();
+    return;
+  }
+  if (state.selected === index) {
+    state.selected = null;
+    render();
+    return;
+  }
+  const firstTier = state.board[state.selected];
+  if (firstTier !== tier) {
+    state.selected = index;
+    sound('tap');
+    render();
+    return;
+  }
+  if (tier >= CREATURES.length - 1) {
+    state.selected = null;
+    toast('EVOA já alcançou a forma suprema!');
+    render();
+    return;
+  }
+
+  const source = state.selected;
+  const nextTier = tier + 1;
+  state.board[source] = null;
+  state.board[index] = nextTier;
+  state.selected = null;
+  state.fusions += 1;
+  state.lumen += 2 + nextTier;
+  state.mission.progress += 1;
+  const isNew = !state.discovered.includes(nextTier);
+  if (isNew) state.discovered.push(nextTier);
+  state.highest = Math.max(state.highest, nextTier);
+
+  if (state.mission.progress >= state.mission.target) {
+    state.lumen += state.mission.reward;
+    toast(`Missão concluída! <strong>+${state.mission.reward} Lúmen</strong>`);
+    state.mission = {
+      level: state.mission.level + 1,
+      target: Math.min(15, state.mission.target + 2),
+      progress: 0,
+      reward: state.mission.reward + 10
+    };
+  }
+
+  sound('merge', nextTier);
+  saveState();
+  render();
+  particles(index, nextTier);
+  animateBirth(index);
+  if (isNew) setTimeout(() => toast(`Nova espécie: <strong>${CREATURES[nextTier].name}</strong> — ${CREATURES[nextTier].title}`), 450);
+}
+
+function animateBirth(index) {
+  const el = root.querySelector(`[data-cell="${index}"]`);
+  el?.classList.add('just-born');
+  setTimeout(() => el?.classList.remove('just-born'), 600);
+}
+
+function particles(index, tier) {
+  const el = root.querySelector(`[data-cell="${index}"]`);
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  for (let i = 0; i < 12; i++) {
+    const p = document.createElement('i');
+    p.className = 'particle';
+    p.textContent = i % 3 ? '✦' : '●';
+    p.style.color = CREATURES[tier].c2;
+    p.style.left = `${r.left + r.width / 2}px`;
+    p.style.top = `${r.top + r.height / 2}px`;
+    const angle = (Math.PI * 2 / 12) * i;
+    const distance = 35 + Math.random() * 45;
+    p.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+    p.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 850);
+  }
+}
+
+function toast(html) {
+  clearTimeout(toastTimer);
+  const el = root.querySelector('#toast');
+  if (!el) return;
+  el.innerHTML = html;
+  el.classList.add('show');
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+function showBestiary() {
+  modal(`<div class="sheet-head"><div><div class="eyebrow">Arquivo vivo</div><h2>Bestiário</h2></div><button class="icon-button" data-close>×</button></div>
+    <p>Cada espécie nasce da união de duas formas iguais. Seu objetivo é despertar EVOA.</p>
+    <div class="bestiary">${CREATURES.map((c,i) => `<div class="entry ${state.discovered.includes(i) ? '' : 'locked'}">${beingHTML(i)}<b>${state.discovered.includes(i) ? c.name : '???'}</b><small>Nível ${i+1}</small></div>`).join('')}</div>`);
+}
+
+function showStats() {
+  const highest = CREATURES[state.highest];
+  modal(`<div class="sheet-head"><div><div class="eyebrow">Memória do jardim</div><h2>Sua jornada</h2></div><button class="icon-button" data-close>×</button></div>
+    <div class="stat-list">
+      <div class="stat"><small>Total de fusões</small><strong>${state.fusions}</strong></div>
+      <div class="stat"><small>Espécies</small><strong>${state.discovered.length}</strong></div>
+      <div class="stat"><small>Forma mais alta</small><strong>${highest.name}</strong></div>
+      <div class="stat"><small>Missão atual</small><strong>${state.mission.level}</strong></div>
+    </div>
+    <p>O jogo salva automaticamente neste aparelho. Funciona também instalado como aplicativo.</p>
+    <button class="danger-btn" data-reset>Recomeçar o universo</button>`);
+  document.querySelector('[data-reset]').addEventListener('click', () => {
+    if (confirm('Apagar todo o progresso e recomeçar?')) {
+      state = structuredClone(defaultState); saveState(); closeModal(); render();
+    }
+  });
+}
+
+function showTutorial(firstTime) {
+  modal(`<div class="sheet-head"><div><div class="eyebrow">Bem-vindo ao EVOA</div><h2>Desperte o impossível</h2></div>${firstTime ? '' : '<button class="icon-button" data-close>×</button>'}</div>
+    <p>Uma tempestade apagou quase toda a vida das ilhas celestes. Seu jardim guarda as últimas faíscas.</p>
+    <div class="tutorial-step"><i>1</i><div><b>Desperte criaturas</b><span>Use 3 Lúmen para abrir um novo casulo.</span></div></div>
+    <div class="tutorial-step"><i>2</i><div><b>Una formas iguais</b><span>Toque em uma criatura e depois em outra igual.</span></div></div>
+    <div class="tutorial-step"><i>3</i><div><b>Descubra o Bestiário</b><span>Cada fusão revela uma espécie inédita e transforma o cenário.</span></div></div>
+    <button class="primary-btn" data-start>${firstTime ? 'Entrar no jardim' : 'Continuar jogando'}</button>`);
+  document.querySelector('[data-start]').addEventListener('click', () => {
+    state.tutorialSeen = true; saveState(); closeModal();
+  });
+}
+
+function modal(content) {
+  closeModal();
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `<section class="sheet">${content}</section>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+  document.body.appendChild(overlay);
+  overlay.querySelector('[data-close]')?.addEventListener('click', closeModal);
+}
+
+function closeModal() { document.querySelector('.overlay')?.remove(); }
+
+let audioCtx;
+function sound(type, tier = 0) {
+  if (!state.sound) return;
+  try {
+    audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = type === 'merge' ? 'sine' : 'triangle';
+    const base = type === 'summon' ? 280 : type === 'merge' ? 360 + tier * 35 : 210;
+    osc.frequency.setValueAtTime(base, now);
+    if (type === 'merge') osc.frequency.exponentialRampToValueAtTime(base * 1.8, now + .22);
+    gain.gain.setValueAtTime(.07, now);
+    gain.gain.exponentialRampToValueAtTime(.001, now + (type === 'merge' ? .34 : .1));
+    osc.start(now); osc.stop(now + .36);
+  } catch {}
+}
+
+render();
+setInterval(() => {
+  if (applyVitalPulse(true)) return render();
+  const timer = document.querySelector('#pulse-timer');
+  if (timer && state.lumen < 30) {
+    const seconds = Math.max(0, 30 - Math.floor((Date.now() - state.lastPulse) / 1000));
+    timer.textContent = `• +3 em 0:${String(seconds).padStart(2, '0')}`;
+  } else if (timer) timer.textContent = '';
+}, 1000);
+if ('serviceWorker' in navigator && location.protocol !== 'file:') window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
