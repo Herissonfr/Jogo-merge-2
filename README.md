@@ -1,11 +1,11 @@
 # EVOA — Jardim das Origens
 
-MVP de jogo mobile de fusão de criaturas, construído como PWA e pronto para publicação na Vercel.
+MVP de jogo mobile de fusão de criaturas em um mapa espacial vivo, construído como PWA e pronto para publicação na Vercel.
 
 ## Como jogar
 
-- Toque em **Despertar vida** para ocupar um casulo vazio.
-- Selecione duas criaturas iguais para fundi-las.
+- Toque em **Despertar vida** para abrir um portal vazio no mapa.
+- Selecione duas criaturas iguais flutuando em órbita para fundi-las.
 - Cada fusão descobre uma criatura mais rara e gera Lúmen.
 - Complete o Bestiário das 12 formas de vida.
 - O progresso fica salvo automaticamente no dispositivo.
