@@ -20,6 +20,21 @@ const BIOMES = [
   { min: 9, name: 'Jardim da Aurora Cósmica', a: '#553349', b: '#17224b' }
 ];
 
+const MAP_POSITIONS = [
+  { x: 15, y: 16, s: .88, d: -1.2 },
+  { x: 47, y: 10, s: 1.02, d: -3.8 },
+  { x: 80, y: 18, s: .91, d: -2.1 },
+  { x: 29, y: 34, s: 1.04, d: -4.6 },
+  { x: 64, y: 34, s: .86, d: -.7 },
+  { x: 89, y: 43, s: .95, d: -5.4 },
+  { x: 11, y: 51, s: .94, d: -2.9 },
+  { x: 43, y: 55, s: 1.09, d: -1.7 },
+  { x: 73, y: 58, s: .98, d: -4.2 },
+  { x: 21, y: 76, s: .91, d: -5.8 },
+  { x: 54, y: 79, s: 1.03, d: -.3 },
+  { x: 84, y: 78, s: .88, d: -3.3 }
+];
+
 const STORAGE_KEY = 'evoa-save-v1';
 const STARTING_BOARD = [0, 0, 0, null, null, null, null, null, null, null, null, null];
 const defaultState = {
@@ -111,12 +126,21 @@ function render() {
         <div class="mission-reward">+${state.mission.reward} ✦</div>
       </section>
 
-      <section class="island">
+      <section class="island space-map-card">
         <div class="island-head"><div>${biome.name}</div><div class="hint">toque + toque</div></div>
-        <div class="board" role="grid" aria-label="Jardim de criaturas">
-          ${state.board.map((tier, i) => `<button class="cell ${state.selected === i ? 'selected' : ''} ${state.selected !== null && tier !== null && tier === state.board[state.selected] && i !== state.selected ? 'merge-target' : ''}" data-cell="${i}" aria-label="${tier === null ? 'Casulo vazio' : CREATURES[tier].name}">
-            ${tier === null ? '' : `<span class="tier-pill">${tier + 1}</span><div class="creature">${beingHTML(tier)}<div class="creature-name">${CREATURES[tier].name}</div></div>`}
-          </button>`).join('')}
+        <div class="cosmic-map" role="grid" aria-label="Mapa orbital de criaturas">
+          <div class="nebula nebula-one"></div><div class="nebula nebula-two"></div>
+          <div class="moon moon-one"></div><div class="moon moon-two"></div>
+          <svg class="orbit-routes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M6 24 C25 2 50 2 72 14 S99 38 83 55 S48 57 31 72 S19 94 54 92 S91 87 94 66" />
+            <path class="orbit-secondary" d="M3 55 C21 41 38 42 50 54 S70 75 97 72" />
+            <circle cx="47" cy="47" r="31" />
+          </svg>
+          <div class="map-core"><i></i><span>ORIGEM</span></div>
+          ${state.board.map((tier, i) => { const p = MAP_POSITIONS[i]; return `<button class="orbit-slot ${state.selected === i ? 'selected' : ''} ${state.selected !== null && tier !== null && tier === state.board[state.selected] && i !== state.selected ? 'merge-target' : ''}" style="--x:${p.x}%;--y:${p.y}%;--scale:${p.s};--delay:${p.d}s" data-cell="${i}" aria-label="${tier === null ? 'Portal vazio' : CREATURES[tier].name}">
+            ${tier === null ? '<span class="empty-rift"><i></i></span>' : `<span class="tier-pill">${tier + 1}</span><div class="creature">${beingHTML(tier)}<div class="creature-name">${CREATURES[tier].name}</div></div>`}
+          </button>`; }).join('')}
+          <div class="map-caption"><span class="live-dot"></span> formas de vida em órbita</div>
         </div>
         <div class="actions">
           <button class="summon" data-action="summon" ${(!lockedGarden && empty === 0) || (empty > 0 && state.lumen < 3) ? 'disabled' : ''}>
