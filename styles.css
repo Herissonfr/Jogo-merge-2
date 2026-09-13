@@ -92,19 +92,64 @@ h1 span { color: var(--lime); }
 .island-head { display: flex; justify-content: space-between; align-items: center; margin: 0 2px 13px; }
 .island-head div:first-child { color: #dceafa; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .hint { color: var(--muted); font-size: 10px; }
-.board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.cell {
-  position: relative; aspect-ratio: .86; min-width: 0; padding: 0; border: 1px solid rgba(186, 237, 255, .1);
-  border-radius: 20px; background: rgba(0, 8, 24, .3); cursor: pointer; overflow: hidden;
-  transition: transform .16s ease, border-color .16s ease, background .16s ease;
+.space-map-card { padding: 14px; background: linear-gradient(155deg, rgba(10,25,51,.94), rgba(4,11,29,.92)); }
+.cosmic-map {
+  position: relative; height: clamp(430px, 55dvh, 510px); overflow: hidden; border: 1px solid rgba(172,234,255,.1);
+  border-radius: 24px; isolation: isolate; background:
+    radial-gradient(circle at 47% 47%, rgba(93,255,220,.1) 0 3%, transparent 18%),
+    radial-gradient(ellipse at 20% 15%, rgba(125,95,255,.18), transparent 35%),
+    radial-gradient(ellipse at 85% 73%, rgba(40,195,255,.13), transparent 32%),
+    linear-gradient(160deg, #07162d, #050b20 68%, #090721);
+  box-shadow: inset 0 0 50px rgba(0,0,0,.42);
 }
-.cell::after { content: ''; position: absolute; inset: 9px; border: 1px dashed rgba(187,238,255,.07); border-radius: 14px; }
-.cell:active { transform: scale(.96); }
-.cell.selected { border-color: var(--mint); background: rgba(111,255,212,.1); box-shadow: 0 0 0 2px rgba(111,255,212,.11), 0 0 25px rgba(111,255,212,.12); }
-.cell.merge-target { animation: targetPulse .7s ease infinite alternate; }
-@keyframes targetPulse { to { border-color: var(--lime); transform: translateY(-3px); } }
-.cell.just-born .creature { animation: birth .5s cubic-bezier(.15,.9,.3,1.4); }
+.cosmic-map::before, .cosmic-map::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: radial-gradient(circle, rgba(236,255,252,.8) 0 1px, transparent 1.5px);
+  background-size: 31px 37px; opacity: .34;
+}
+.cosmic-map::after { background-size: 67px 59px; background-position: 13px 19px; opacity: .22; animation: starDrift 18s linear infinite; }
+@keyframes starDrift { to { transform: translateY(59px); } }
+.nebula { position: absolute; z-index: -1; border-radius: 50%; filter: blur(18px); opacity: .35; animation: nebulaBreathe 8s ease-in-out infinite alternate; }
+.nebula-one { width: 180px; height: 110px; left: -48px; top: 43%; background: #6551ff; transform: rotate(25deg); }
+.nebula-two { width: 170px; height: 130px; right: -65px; top: 7%; background: #2ed5b2; animation-delay: -4s; }
+@keyframes nebulaBreathe { to { opacity: .55; transform: scale(1.15) rotate(12deg); } }
+.moon { position: absolute; z-index: 0; border-radius: 50%; pointer-events: none; box-shadow: inset -8px -9px 13px rgba(0,0,0,.28), 0 0 22px rgba(150,234,255,.09); }
+.moon::after { content: ''; position: absolute; width: 20%; height: 20%; left: 24%; top: 23%; border-radius: 50%; background: rgba(2,12,31,.24); box-shadow: 16px 14px 0 -2px rgba(2,12,31,.18); }
+.moon-one { width: 42px; height: 42px; left: 5%; top: 27%; background: #60779b; opacity: .45; }
+.moon-two { width: 26px; height: 26px; right: 10%; top: 62%; background: #a576b6; opacity: .38; }
+.orbit-routes { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.orbit-routes path, .orbit-routes circle { fill: none; stroke: rgba(111,255,212,.18); stroke-width: .42; stroke-dasharray: 1.5 2.3; vector-effect: non-scaling-stroke; }
+.orbit-routes .orbit-secondary { stroke: rgba(154,132,255,.17); stroke-dasharray: .8 3; }
+.orbit-routes circle { stroke: rgba(218,255,126,.09); stroke-dasharray: 1 4; }
+.map-core { position: absolute; z-index: 1; left: 47%; top: 47%; width: 54px; height: 54px; display: grid; place-items: center; border: 1px solid rgba(111,255,212,.16); border-radius: 50%; background: radial-gradient(circle, rgba(111,255,212,.16), rgba(7,18,40,.72) 60%); transform: translate(-50%,-50%); pointer-events: none; }
+.map-core::before, .map-core::after { content: ''; position: absolute; inset: -7px; border: 1px solid rgba(111,255,212,.11); border-radius: 50%; animation: coreSpin 8s linear infinite; }
+.map-core::after { inset: -15px; border-style: dashed; animation-direction: reverse; animation-duration: 13s; }
+.map-core i { width: 10px; height: 10px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 18px var(--mint); }
+.map-core span { position: absolute; top: 60px; color: rgba(186,255,239,.45); font-size: 7px; font-weight: 900; letter-spacing: .24em; }
+@keyframes coreSpin { to { transform: rotate(360deg); } }
+.orbit-slot {
+  position: absolute; z-index: 3; left: var(--x); top: var(--y); width: 76px; height: 88px; padding: 0; border: 0;
+  border-radius: 50%; color: inherit; background: transparent; cursor: pointer; transform: translate(-50%,-50%) scale(var(--scale));
+  transition: filter .18s ease; overflow: visible;
+}
+.orbit-slot::before { content: ''; position: absolute; inset: 12px 8px 6px; border: 1px solid transparent; border-radius: 50%; transition: border-color .2s, box-shadow .2s, background .2s; }
+.orbit-slot:active { filter: brightness(1.25); }
+.orbit-slot.selected::before { border-color: var(--mint); background: rgba(111,255,212,.08); box-shadow: 0 0 0 4px rgba(111,255,212,.05), 0 0 28px rgba(111,255,212,.28); }
+.orbit-slot.merge-target::before { border-color: rgba(223,255,115,.7); box-shadow: 0 0 25px rgba(223,255,115,.25); animation: targetPulse .65s ease infinite alternate; }
+@keyframes targetPulse { to { opacity: .35; transform: scale(1.12); } }
+.orbit-slot .creature { animation: beingFloat 5s ease-in-out infinite; animation-delay: var(--delay); }
+.orbit-slot:nth-of-type(odd) .creature { animation-duration: 6.2s; }
+@keyframes beingFloat { 0%,100% { transform: translateY(-3px) rotate(-1.5deg); } 50% { transform: translateY(5px) rotate(1.8deg); } }
+.orbit-slot.just-born .creature { animation: birth .5s cubic-bezier(.15,.9,.3,1.4); }
 @keyframes birth { from { opacity: 0; transform: scale(.2) rotate(-15deg); } }
+.empty-rift { position: absolute; left: 50%; top: 50%; width: 29px; height: 29px; border: 1px dashed rgba(173,234,255,.24); border-radius: 50%; transform: translate(-50%,-50%); animation: riftFloat 5s ease-in-out infinite; animation-delay: var(--delay); }
+.empty-rift::before, .empty-rift::after { content: ''; position: absolute; border-radius: 50%; }
+.empty-rift::before { inset: 6px; border: 1px solid rgba(134,107,255,.28); }
+.empty-rift::after { inset: 11px; background: rgba(111,255,212,.45); box-shadow: 0 0 9px rgba(111,255,212,.6); }
+.empty-rift i { position: absolute; inset: -5px; border-top: 1px solid rgba(111,255,212,.35); border-radius: 50%; animation: coreSpin 4s linear infinite; }
+@keyframes riftFloat { 50% { transform: translate(-50%,calc(-50% + 5px)) scale(.9); opacity: .58; } }
+.map-caption { position: absolute; z-index: 2; left: 50%; bottom: 8px; padding: 5px 9px; border: 1px solid rgba(185,238,255,.09); border-radius: 12px; color: rgba(184,211,229,.5); background: rgba(2,9,25,.54); font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; transform: translateX(-50%); white-space: nowrap; }
+.live-dot { display: inline-block; width: 5px; height: 5px; margin-right: 5px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 8px var(--mint); }
 
 .creature { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2; }
 .being { position: relative; width: 61px; height: 61px; filter: drop-shadow(0 9px 10px rgba(0,0,0,.25)); }
@@ -168,10 +213,10 @@ h1 span { color: var(--lime); }
 
 @media (max-width: 370px) {
   .world { padding-left: 11px; padding-right: 11px; }
-  .island { padding: 12px; }
-  .board { gap: 6px; }
-  .cell { border-radius: 17px; }
-  .being { transform: scale(.87); }
+  .island { padding: 11px; }
+  .cosmic-map { height: 420px; }
+  .orbit-slot { width: 70px; height: 82px; }
+  .orbit-slot .being { transform: scale(.9); }
 }
 @media (min-width: 700px) {
   body { background: #030916; }
