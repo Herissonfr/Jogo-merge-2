@@ -52,6 +52,8 @@ const defaultState = {
 
 let state = loadState();
 let toastTimer;
+let dragSession = null;
+let suppressClickUntil = 0;
 const root = document.querySelector('#app');
 
 function loadState() {
@@ -127,7 +129,7 @@ function render() {
       </section>
 
       <section class="island space-map-card">
-        <div class="island-head"><div>${biome.name}</div><div class="hint">toque + toque</div></div>
+        <div class="island-head"><div>${biome.name}</div><div class="hint">arraste para unir</div></div>
         <div class="cosmic-map" role="grid" aria-label="Mapa orbital de criaturas">
           <div class="nebula nebula-one"></div><div class="nebula nebula-two"></div>
           <div class="moon moon-one"></div><div class="moon moon-two"></div>
@@ -140,7 +142,7 @@ function render() {
           ${state.board.map((tier, i) => { const p = MAP_POSITIONS[i]; return `<button class="orbit-slot ${state.selected === i ? 'selected' : ''} ${state.selected !== null && tier !== null && tier === state.board[state.selected] && i !== state.selected ? 'merge-target' : ''}" style="--x:${p.x}%;--y:${p.y}%;--scale:${p.s};--delay:${p.d}s" data-cell="${i}" aria-label="${tier === null ? 'Portal vazio' : CREATURES[tier].name}">
             ${tier === null ? '<span class="empty-rift"><i></i></span>' : `<span class="tier-pill">${tier + 1}</span><div class="creature">${beingHTML(tier)}<div class="creature-name">${CREATURES[tier].name}</div></div>`}
           </button>`; }).join('')}
-          <div class="map-caption"><span class="live-dot"></span> formas de vida em órbita</div>
+          <div class="map-caption"><span class="live-dot"></span><span data-drag-hint> arraste seres iguais</span></div>
         </div>
         <div class="actions">
           <button class="summon" data-action="summon" ${(!lockedGarden && empty === 0) || (empty > 0 && state.lumen < 3) ? 'disabled' : ''}>
@@ -158,9 +160,136 @@ function render() {
     <div class="toast" id="toast"></div>
   </main>`;
 
-  root.querySelectorAll('[data-cell]').forEach(btn => btn.addEventListener('click', () => selectCell(Number(btn.dataset.cell))));
+  bindCreatureControls();
   root.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', () => action(btn.dataset.action)));
   if (!state.tutorialSeen) requestAnimationFrame(() => showTutorial(true));
+}
+
+function bindCreatureControls() {
+  root.querySelectorAll('[data-cell]').forEach(btn => {
+    const index = Number(btn.dataset.cell);
+    btn.addEventListener('click', () => {
+      if (Date.now() < suppressClickUntil) return;
+      selectCell(index);
+    });
+    btn.addEventListener('pointerdown', event => startCreatureDrag(event, index));
+  });
+}
+
+function startCreatureDrag(event, index) {
+  if (dragSession || state.board[index] === null || (event.button !== undefined && event.button !== 0)) return;
+  const element = event.currentTarget;
+  dragSession = {
+    pointerId: event.pointerId,
+    index,
+    tier: state.board[index],
+    element,
+    startX: event.clientX,
+    startY: event.clientY,
+    moved: false,
+    target: null,
+    nearby: null
+  };
+  element.setPointerCapture?.(event.pointerId);
+  element.classList.add('drag-armed');
+  element.addEventListener('pointermove', moveCreature);
+  element.addEventListener('pointerup', endCreatureDrag);
+  element.addEventListener('pointercancel', cancelCreatureDrag);
+}
+
+function moveCreature(event) {
+  if (!dragSession || event.pointerId !== dragSession.pointerId) return;
+  const dx = event.clientX - dragSession.startX;
+  const dy = event.clientY - dragSession.startY;
+  if (!dragSession.moved && Math.hypot(dx, dy) < 7) return;
+  event.preventDefault();
+
+  if (!dragSession.moved) {
+    dragSession.moved = true;
+    state.selected = null;
+    root.querySelectorAll('.orbit-slot.selected').forEach(el => el.classList.remove('selected'));
+    dragSession.element.classList.add('dragging');
+    sound('tap');
+    navigator.vibrate?.(8);
+  }
+
+  dragSession.element.style.setProperty('--drag-x', `${dx}px`);
+  dragSession.element.style.setProperty('--drag-y', `${dy}px`);
+  const nearby = findNearbySlot(event.clientX, event.clientY, dragSession.index);
+  root.querySelectorAll('.drop-ready,.drop-invalid').forEach(el => el.classList.remove('drop-ready','drop-invalid'));
+  dragSession.nearby = nearby;
+  dragSession.target = null;
+
+  const hint = root.querySelector('[data-drag-hint]');
+  if (nearby !== null) {
+    const sameTier = state.board[nearby] === dragSession.tier;
+    const canEvolve = dragSession.tier < CREATURES.length - 1;
+    const targetEl = root.querySelector(`[data-cell="${nearby}"]`);
+    if (sameTier && canEvolve) {
+      dragSession.target = nearby;
+      targetEl?.classList.add('drop-ready');
+      if (hint) hint.textContent = ' solte para criar uma nova espécie';
+    } else {
+      targetEl?.classList.add('drop-invalid');
+      if (hint) hint.textContent = ' escolha uma criatura igual';
+    }
+  } else if (hint) hint.textContent = ' arraste sobre uma criatura igual';
+}
+
+function findNearbySlot(x, y, sourceIndex) {
+  let closest = null;
+  let shortest = Infinity;
+  root.querySelectorAll('.orbit-slot').forEach(slot => {
+    const index = Number(slot.dataset.cell);
+    if (index === sourceIndex || state.board[index] === null) return;
+    const rect = slot.getBoundingClientRect();
+    const distance = Math.hypot(x - (rect.left + rect.width / 2), y - (rect.top + rect.height / 2));
+    if (distance < Math.max(52, rect.width * .68) && distance < shortest) {
+      closest = index;
+      shortest = distance;
+    }
+  });
+  return closest;
+}
+
+function endCreatureDrag(event) {
+  if (!dragSession || event.pointerId !== dragSession.pointerId) return;
+  const { moved, index, target, nearby } = dragSession;
+  if (!moved) return cleanupDrag(false);
+  event.preventDefault();
+  suppressClickUntil = Date.now() + 450;
+  cleanupDrag(target === null);
+  if (target !== null) {
+    navigator.vibrate?.([18, 25, 34]);
+    mergeCells(index, target);
+  } else if (nearby !== null) {
+    toast(`Essa combinação não reage. Procure outro <strong>${CREATURES[state.board[index]].name}</strong>.`);
+  }
+}
+
+function cancelCreatureDrag(event) {
+  if (!dragSession || event.pointerId !== dragSession.pointerId) return;
+  suppressClickUntil = Date.now() + 300;
+  cleanupDrag(true);
+}
+
+function cleanupDrag(snapBack) {
+  if (!dragSession) return;
+  const { element, pointerId } = dragSession;
+  try { element.releasePointerCapture?.(pointerId); } catch {}
+  element.removeEventListener('pointermove', moveCreature);
+  element.removeEventListener('pointerup', endCreatureDrag);
+  element.removeEventListener('pointercancel', cancelCreatureDrag);
+  element.classList.remove('drag-armed','dragging');
+  if (snapBack) element.classList.add('snap-back');
+  if (snapBack) void element.offsetWidth;
+  element.style.setProperty('--drag-x', '0px');
+  element.style.setProperty('--drag-y', '0px');
+  root.querySelectorAll('.drop-ready,.drop-invalid').forEach(el => el.classList.remove('drop-ready','drop-invalid'));
+  const hint = root.querySelector('[data-drag-hint]');
+  if (hint) hint.textContent = ' arraste seres iguais';
+  if (snapBack) setTimeout(() => element.classList.remove('snap-back'), 260);
+  dragSession = null;
 }
 
 function action(name) {
@@ -227,7 +356,13 @@ function selectCell(index) {
     return;
   }
 
-  const source = state.selected;
+  mergeCells(state.selected, index);
+}
+
+function mergeCells(source, index) {
+  if (source === index || state.board[source] === null || state.board[index] === null || state.board[source] !== state.board[index]) return;
+  const tier = state.board[index];
+  if (tier >= CREATURES.length - 1) return toast('EVOA já alcançou a forma suprema!');
   const nextTier = tier + 1;
   state.board[source] = null;
   state.board[index] = nextTier;
@@ -239,9 +374,10 @@ function selectCell(index) {
   if (isNew) state.discovered.push(nextTier);
   state.highest = Math.max(state.highest, nextTier);
 
+  let missionMessage = '';
   if (state.mission.progress >= state.mission.target) {
     state.lumen += state.mission.reward;
-    toast(`Missão concluída! <strong>+${state.mission.reward} Lúmen</strong>`);
+    missionMessage = `Missão concluída! <strong>+${state.mission.reward} Lúmen</strong>`;
     state.mission = {
       level: state.mission.level + 1,
       target: Math.min(15, state.mission.target + 2),
@@ -255,6 +391,7 @@ function selectCell(index) {
   render();
   particles(index, nextTier);
   animateBirth(index);
+  if (missionMessage) setTimeout(() => toast(missionMessage), 60);
   if (isNew) setTimeout(() => toast(`Nova espécie: <strong>${CREATURES[nextTier].name}</strong> — ${CREATURES[nextTier].title}`), 450);
 }
 
@@ -321,7 +458,7 @@ function showTutorial(firstTime) {
   modal(`<div class="sheet-head"><div><div class="eyebrow">Bem-vindo ao EVOA</div><h2>Desperte o impossível</h2></div>${firstTime ? '' : '<button class="icon-button" data-close>×</button>'}</div>
     <p>Uma tempestade apagou quase toda a vida das ilhas celestes. Seu jardim guarda as últimas faíscas.</p>
     <div class="tutorial-step"><i>1</i><div><b>Desperte criaturas</b><span>Use 3 Lúmen para abrir um novo casulo.</span></div></div>
-    <div class="tutorial-step"><i>2</i><div><b>Una formas iguais</b><span>Toque em uma criatura e depois em outra igual.</span></div></div>
+    <div class="tutorial-step"><i>2</i><div><b>Arraste formas iguais</b><span>Segure uma criatura, arraste sobre outra igual e solte para fundir. Dois toques também funcionam.</span></div></div>
     <div class="tutorial-step"><i>3</i><div><b>Descubra o Bestiário</b><span>Cada fusão revela uma espécie inédita e transforma o cenário.</span></div></div>
     <button class="primary-btn" data-start>${firstTime ? 'Entrar no jardim' : 'Continuar jogando'}</button>`);
   document.querySelector('[data-start]').addEventListener('click', () => {
