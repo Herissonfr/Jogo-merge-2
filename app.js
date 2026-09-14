@@ -39,6 +39,7 @@ const STORAGE_KEY = 'evoa-save-v1';
 const STARTING_BOARD = [0, 0, 0, null, null, null, null, null, null, null, null, null];
 const defaultState = {
   board: STARTING_BOARD,
+  positions: MAP_POSITIONS.map(({ x, y }) => ({ x, y })),
   lumen: 18,
   fusions: 0,
   discovered: [0],
@@ -60,7 +61,14 @@ function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!saved || !Array.isArray(saved.board) || saved.board.length !== 12) return structuredClone(defaultState);
-    return { ...structuredClone(defaultState), ...saved, selected: null };
+    const base = structuredClone(defaultState);
+    const positions = Array.isArray(saved.positions) && saved.positions.length === 12
+      ? saved.positions.map((position, index) => ({
+          x: Number.isFinite(position?.x) ? Math.min(93, Math.max(7, position.x)) : base.positions[index].x,
+          y: Number.isFinite(position?.y) ? Math.min(89, Math.max(8, position.y)) : base.positions[index].y
+        }))
+      : base.positions;
+    return { ...base, ...saved, positions, selected: null };
   } catch { return structuredClone(defaultState); }
 }
 
@@ -139,7 +147,7 @@ function render() {
             <circle cx="47" cy="47" r="31" />
           </svg>
           <div class="map-core"><i></i><span>ORIGEM</span></div>
-          ${state.board.map((tier, i) => { const p = MAP_POSITIONS[i]; return `<button class="orbit-slot ${state.selected === i ? 'selected' : ''} ${state.selected !== null && tier !== null && tier === state.board[state.selected] && i !== state.selected ? 'merge-target' : ''}" style="--x:${p.x}%;--y:${p.y}%;--scale:${p.s};--delay:${p.d}s" data-cell="${i}" aria-label="${tier === null ? 'Portal vazio' : CREATURES[tier].name}">
+          ${state.board.map((tier, i) => { const p = { ...MAP_POSITIONS[i], ...(state.positions?.[i] || {}) }; return `<button class="orbit-slot ${state.selected === i ? 'selected' : ''} ${state.selected !== null && tier !== null && tier === state.board[state.selected] && i !== state.selected ? 'merge-target' : ''}" style="--x:${p.x}%;--y:${p.y}%;--scale:${p.s};--delay:${p.d}s" data-cell="${i}" aria-label="${tier === null ? 'Portal vazio' : CREATURES[tier].name}">
             ${tier === null ? '<span class="empty-rift"><i></i></span>' : `<span class="tier-pill">${tier + 1}</span><div class="creature">${beingHTML(tier)}<div class="creature-name">${CREATURES[tier].name}</div></div>`}
           </button>`; }).join('')}
           <div class="map-caption"><span class="live-dot"></span><span data-drag-hint> arraste seres iguais</span></div>
@@ -231,9 +239,9 @@ function moveCreature(event) {
       if (hint) hint.textContent = ' solte para criar uma nova espécie';
     } else {
       targetEl?.classList.add('drop-invalid');
-      if (hint) hint.textContent = ' escolha uma criatura igual';
+      if (hint) hint.textContent = ' solte aqui para apenas posicionar';
     }
-  } else if (hint) hint.textContent = ' arraste sobre uma criatura igual';
+  } else if (hint) hint.textContent = ' solte para fixar nesta posição';
 }
 
 function findNearbySlot(x, y, sourceIndex) {
@@ -258,13 +266,32 @@ function endCreatureDrag(event) {
   if (!moved) return cleanupDrag(false);
   event.preventDefault();
   suppressClickUntil = Date.now() + 450;
-  cleanupDrag(target === null);
+  const dropX = event.clientX;
+  const dropY = event.clientY;
+  cleanupDrag(false);
   if (target !== null) {
     navigator.vibrate?.([18, 25, 34]);
     mergeCells(index, target);
-  } else if (nearby !== null) {
-    toast(`Essa combinação não reage. Procure outro <strong>${CREATURES[state.board[index]].name}</strong>.`);
-  }
+  } else placeCreature(index, dropX, dropY, nearby !== null);
+}
+
+function placeCreature(index, clientX, clientY, nearDifferentCreature) {
+  const map = root.querySelector('.cosmic-map');
+  if (!map) return render();
+  const rect = map.getBoundingClientRect();
+  const x = Math.min(93, Math.max(7, (clientX - rect.left) / rect.width * 100));
+  const y = Math.min(89, Math.max(8, (clientY - rect.top) / rect.height * 100));
+  state.positions ||= MAP_POSITIONS.map(position => ({ x: position.x, y: position.y }));
+  state.positions[index] = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+  state.selected = null;
+  saveState();
+  sound('place');
+  navigator.vibrate?.(12);
+  render();
+  const placed = root.querySelector(`[data-cell="${index}"]`);
+  placed?.classList.add('just-placed');
+  setTimeout(() => placed?.classList.remove('just-placed'), 380);
+  if (nearDifferentCreature) setTimeout(() => toast('Posição salva. Seres diferentes ficam próximos, mas não se fundem.'), 80);
 }
 
 function cancelCreatureDrag(event) {
@@ -458,7 +485,7 @@ function showTutorial(firstTime) {
   modal(`<div class="sheet-head"><div><div class="eyebrow">Bem-vindo ao EVOA</div><h2>Desperte o impossível</h2></div>${firstTime ? '' : '<button class="icon-button" data-close>×</button>'}</div>
     <p>Uma tempestade apagou quase toda a vida das ilhas celestes. Seu jardim guarda as últimas faíscas.</p>
     <div class="tutorial-step"><i>1</i><div><b>Desperte criaturas</b><span>Use 3 Lúmen para abrir um novo casulo.</span></div></div>
-    <div class="tutorial-step"><i>2</i><div><b>Arraste formas iguais</b><span>Segure uma criatura, arraste sobre outra igual e solte para fundir. Dois toques também funcionam.</span></div></div>
+    <div class="tutorial-step"><i>2</i><div><b>Organize e combine</b><span>Solte em qualquer lugar para reposicionar. Solte sobre uma criatura igual para fazer o merge. Dois toques também funcionam.</span></div></div>
     <div class="tutorial-step"><i>3</i><div><b>Descubra o Bestiário</b><span>Cada fusão revela uma espécie inédita e transforma o cenário.</span></div></div>
     <button class="primary-btn" data-start>${firstTime ? 'Entrar no jardim' : 'Continuar jogando'}</button>`);
   document.querySelector('[data-start]').addEventListener('click', () => {
@@ -488,7 +515,7 @@ function sound(type, tier = 0) {
     const gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
     osc.type = type === 'merge' ? 'sine' : 'triangle';
-    const base = type === 'summon' ? 280 : type === 'merge' ? 360 + tier * 35 : 210;
+    const base = type === 'summon' ? 280 : type === 'merge' ? 360 + tier * 35 : type === 'place' ? 165 : 210;
     osc.frequency.setValueAtTime(base, now);
     if (type === 'merge') osc.frequency.exponentialRampToValueAtTime(base * 1.8, now + .22);
     gain.gain.setValueAtTime(.07, now);
