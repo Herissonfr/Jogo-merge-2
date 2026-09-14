@@ -129,14 +129,26 @@ h1 span { color: var(--lime); }
 @keyframes coreSpin { to { transform: rotate(360deg); } }
 .orbit-slot {
   position: absolute; z-index: 3; left: var(--x); top: var(--y); width: 76px; height: 88px; padding: 0; border: 0;
-  border-radius: 50%; color: inherit; background: transparent; cursor: pointer; transform: translate(-50%,-50%) scale(var(--scale));
-  transition: filter .18s ease; overflow: visible;
+  border-radius: 50%; color: inherit; background: transparent; cursor: grab; touch-action: none;
+  transform: translate(calc(-50% + var(--drag-x, 0px)), calc(-50% + var(--drag-y, 0px))) scale(var(--scale));
+  transition: transform .2s cubic-bezier(.2,.9,.3,1), filter .18s ease; overflow: visible;
 }
 .orbit-slot::before { content: ''; position: absolute; inset: 12px 8px 6px; border: 1px solid transparent; border-radius: 50%; transition: border-color .2s, box-shadow .2s, background .2s; }
 .orbit-slot:active { filter: brightness(1.25); }
+.orbit-slot .creature, .orbit-slot .empty-rift { pointer-events: none; }
+.orbit-slot.drag-armed { cursor: grabbing; }
+.orbit-slot.dragging { z-index: 15; cursor: grabbing; filter: brightness(1.16) drop-shadow(0 18px 14px rgba(0,0,0,.34)); transition: none; }
+.orbit-slot.dragging::before { border-color: rgba(111,255,212,.62); background: rgba(111,255,212,.12); box-shadow: 0 0 0 7px rgba(111,255,212,.07), 0 0 35px rgba(111,255,212,.42); }
+.orbit-slot.dragging .creature { animation: none; transform: translateY(-8px) scale(1.12) rotate(3deg); }
+.orbit-slot.snap-back { transition: transform .24s cubic-bezier(.2,1.4,.45,1); }
 .orbit-slot.selected::before { border-color: var(--mint); background: rgba(111,255,212,.08); box-shadow: 0 0 0 4px rgba(111,255,212,.05), 0 0 28px rgba(111,255,212,.28); }
 .orbit-slot.merge-target::before { border-color: rgba(223,255,115,.7); box-shadow: 0 0 25px rgba(223,255,115,.25); animation: targetPulse .65s ease infinite alternate; }
+.orbit-slot.drop-ready { z-index: 8; }
+.orbit-slot.drop-ready::before { border-color: var(--lime); background: rgba(223,255,115,.12); box-shadow: 0 0 0 7px rgba(223,255,115,.08), 0 0 35px rgba(223,255,115,.5); animation: dropReady .48s ease-in-out infinite alternate; }
+.orbit-slot.drop-ready .creature { animation: none; transform: scale(1.09); }
+.orbit-slot.drop-invalid::before { border-color: rgba(255,128,156,.72); background: rgba(255,128,156,.08); box-shadow: 0 0 24px rgba(255,128,156,.28); }
 @keyframes targetPulse { to { opacity: .35; transform: scale(1.12); } }
+@keyframes dropReady { to { transform: scale(1.15); opacity: .62; } }
 .orbit-slot .creature { animation: beingFloat 5s ease-in-out infinite; animation-delay: var(--delay); }
 .orbit-slot:nth-of-type(odd) .creature { animation-duration: 6.2s; }
 @keyframes beingFloat { 0%,100% { transform: translateY(-3px) rotate(-1.5deg); } 50% { transform: translateY(5px) rotate(1.8deg); } }
