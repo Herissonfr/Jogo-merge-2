@@ -5,7 +5,7 @@ MVP de jogo mobile de fusão de criaturas em um mapa espacial vivo, construído 
 ## Como jogar
 
 - Toque em **Despertar vida** para abrir um portal vazio no mapa.
-- Selecione duas criaturas iguais flutuando em órbita para fundi-las.
+- Arraste uma criatura sobre outra igual e solte para fazer a fusão. O modo por dois toques continua disponível.
 - Cada fusão descobre uma criatura mais rara e gera Lúmen.
 - Complete o Bestiário das 12 formas de vida.
 - O progresso fica salvo automaticamente no dispositivo.
